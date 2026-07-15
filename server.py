@@ -14,23 +14,25 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*", max_h
 # Create temp_audio directory
 os.makedirs('temp_audio', exist_ok=True)
 
-connected_clients = 0
+active_client_sids = set()
+active_host_sids = set()
 global_direction = 'e2b'
 current_speaker_sid = None
 current_speaker_role = None
 
 def acquire_lock(sid, role):
     global current_speaker_sid, current_speaker_role
-    if current_speaker_sid is None or current_speaker_sid == sid:
+    # If it's unlocked, or if the same role is trying to acquire it again (e.g. Host refreshed)
+    if current_speaker_role is None or current_speaker_role == role:
         current_speaker_sid = sid
         current_speaker_role = role
         socketio.emit('conversation_lock', {'role': role, 'sid': sid})
         return True
     return False
 
-def release_lock(sid):
+def release_lock(role):
     global current_speaker_sid, current_speaker_role
-    if current_speaker_sid == sid:
+    if current_speaker_role == role:
         current_speaker_sid = None
         current_speaker_role = None
         socketio.emit('conversation_unlock')
@@ -58,28 +60,51 @@ def download_temp_audio(filename):
 @socketio.on('connect')
 def handle_connect():
     client_type = request.args.get('type')
+    
     if client_type == 'client':
-        global connected_clients
-        connected_clients += 1
-        emit('client_count_update', {'count': connected_clients}, broadcast=True)
-        emit('system_log', {'message': f'New client connected. Total: {connected_clients}'}, broadcast=True)
+        active_client_sids.add(request.sid)
+        emit('client_count_update', {'count': len(active_client_sids)}, broadcast=True)
+        emit('system_log', {'message': f'New client connected. Total: {len(active_client_sids)}'}, broadcast=True)
+        
+        # Send current state to the new client
+        emit('update_direction', {'direction': global_direction})
+        if current_speaker_role is not None:
+            emit('conversation_lock', {'role': current_speaker_role, 'sid': current_speaker_sid})
+            
+    elif client_type == 'host':
+        active_host_sids.add(request.sid)
+        # Send current state to the connecting host
+        emit('client_count_update', {'count': len(active_client_sids)})
+        emit('update_direction', {'direction': global_direction})
+        if current_speaker_role is not None:
+            emit('conversation_lock', {'role': current_speaker_role, 'sid': current_speaker_sid})
     
     gpu_type = 'CUDA' if pipeline_manager.is_cuda_available() else 'CPU'
     emit('gpu_status', {'gpu': gpu_type})
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    global connected_clients
-    # We can check if this socket holds the lock
-    release_lock(request.sid)
+    global current_speaker_sid, current_speaker_role, global_direction
     
-    # client_type is not easily accessible in disconnect unless tracked,
-    # but we can safely just do a rough connected_clients decrement 
-    # if we track who is a client. For now, assume clients are dropping.
-    # Actually, we don't strictly enforce the count decrement accurately here without session tracking,
-    # but releasing the lock is the critical part.
-    # If the Host drops, the lock is released too.
-    emit('system_log', {'message': f'Socket disconnected: {request.sid}'}, broadcast=True)
+    if request.sid in active_client_sids:
+        active_client_sids.remove(request.sid)
+        emit('client_count_update', {'count': len(active_client_sids)}, broadcast=True)
+        emit('system_log', {'message': f'Client disconnected. Total: {len(active_client_sids)}'}, broadcast=True)
+        
+        # If this specific client was speaking, release the lock
+        if current_speaker_sid == request.sid:
+            release_lock('client')
+            
+    elif request.sid in active_host_sids:
+        active_host_sids.remove(request.sid)
+        emit('system_log', {'message': f'Host disconnected.'}, broadcast=True)
+        
+        # Only reset global state if no clients remain connected
+        if len(active_client_sids) == 0:
+            current_speaker_sid = None
+            current_speaker_role = None
+            global_direction = 'e2b'
+            emit('conversation_unlock', broadcast=True)
 
 @socketio.on('clear_client_session')
 def handle_clear_client():
@@ -113,7 +138,7 @@ def handle_start_translation(data):
     if not input_data:
         emit('system_log', {'message': 'Error: No input data provided.'})
         emit('ui_state', {'state': 'Finished'})
-        release_lock(request.sid)
+        release_lock(source)
         return
         
     def emit_wrapper(event_type, msg):
@@ -132,16 +157,18 @@ def handle_start_translation(data):
     # Inject source so frontend knows who spoke
     result['source'] = source
     
+    
     if result["success"]:
         emit('latency_update', {'latency': result["latency_sec"]})
         emit('translation_result', result, broadcast=True)
     
     emit_wrapper('status', 'Finished')
-    release_lock(request.sid)
+    release_lock(source)
 
 @socketio.on('stop_translation')
 def handle_stop_translation():
-    release_lock(request.sid)
+    client_type = 'host' if request.sid in active_host_sids else 'client'
+    release_lock(client_type)
     emit('system_log', {'message': 'Translation pipeline stopped manually.'}, broadcast=True)
     emit('ui_state', {'state': 'Stopped'})
 
@@ -181,14 +208,17 @@ def handle_start_live(data):
 
 @socketio.on('audio_stream')
 def handle_audio_stream(audio_buffer):
-    # Only allow the current lock holder to stream audio
-    if current_speaker_sid == request.sid:
+    # Determine the role of the sender
+    client_type = 'host' if request.sid in active_host_sids else 'client'
+    # Only allow the current lock holder role to stream audio
+    if current_speaker_role == client_type:
         pipeline_manager.push_live_audio(audio_buffer)
 
 @socketio.on('stop_live')
 def handle_stop_live():
-    if current_speaker_sid == request.sid:
+    client_type = 'host' if request.sid in active_host_sids else 'client'
+    if current_speaker_role == client_type:
         pipeline_manager.stop_live_pipeline()
-        release_lock(request.sid)
+        release_lock(client_type)
         socketio.emit('system_log', {'message': 'Live Stream stopped.'})
         socketio.emit('ui_state', {'state': 'Stopped'})

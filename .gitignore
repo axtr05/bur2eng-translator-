@@ -1,46 +1,67 @@
+# ===========================
 # Python
+# ===========================
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
 
+# ===========================
 # Virtual Environment
+# ===========================
 venv/
+.venv/
 
+# ===========================
 # Logs
-logs/
+# ===========================
 *.log
+logs/
 
-# Certificates
-certs/
-
-# Metrics
-metrics/
-
-# Temporary
+# ===========================
+# Temporary Files
+# ===========================
 temp_audio/
 
+# ===========================
 # Models
-whisper-myanmar-finetuned/
+# ===========================
 models/
-*.pt
-*.bin
-*.safetensors
+whisper-myanmar-finetuned/
 
-# Tests
+# ===========================
+# Certificates
+# ===========================
+certs/
+
+# ===========================
+# Training (Not part of submission)
+# ===========================
+train.py
+train_whisper.py
+training_runs/
+metrics/
+checkpoints/
+
+# ===========================
+# Test Files
+# ===========================
 test_*.py
 
-# Training
-train.py
-
-# mkcert
-mkcert
-setup_mkcert.sh
-HTTPS_SETUP.md
-MKCERT_SETUP.md
-
+# ===========================
 # IDE
+# ===========================
 .vscode/
 .idea/
 
+# ===========================
+# Environment
+# ===========================
+.env
+.env.*
+
+# ===========================
 # OS
+# ===========================
 .DS_Store
 Thumbs.db

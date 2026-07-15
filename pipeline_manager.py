@@ -213,11 +213,11 @@ def vad_worker(direction, emit_func):
                             
                             # Ignore tiny noises (e.g. keyboard clicks) if actual speech is < 150ms
                             if true_speech_dur >= 0.15:
-                                msg = f"Speech Segment Created duration {dur:.2f}s"
-                                print(msg)
-                                emit_func('log', msg)
+                                print(f"\n[VAD]\nSpeech Segment Created\nDuration: {dur:.2f}s\n↓")
+                                emit_func('log', f"Speech Segment Created duration {dur:.2f}s")
                                 asr_queue.put({'audio': segment, 'direction': direction})
                             else:
+                                print(f"[VAD] Ignored short noise segment (true speech: {true_speech_dur:.2f}s)")
                                 emit_func('log', f"Ignored short noise segment (true speech: {true_speech_dur:.2f}s)")
                             
                             speech_buffer = []
@@ -227,10 +227,13 @@ def vad_worker(direction, emit_func):
         except queue.Empty:
             continue
         except Exception as e:
+            print("[VAD] ERROR:")
+            traceback.print_exc()
             emit_func('log', f"VAD Error: {str(e)}")
 
 def asr_worker(emit_func):
     """Consumes audio segments and transcribes them."""
+    print("[ASR] Worker Started")
     while live_active:
         try:
             item = asr_queue.get(timeout=0.5)
@@ -240,22 +243,21 @@ def asr_worker(emit_func):
             audio = item['audio']
             pipeline = e2b if direction == 'e2b' else b2e
             
+            print(f"\n[ASR]\nReceived Segment\nSegment Shape: {audio.shape}\nSample Rate: {pipeline.SAMPLE_RATE}")
+            
             emit_func('timeline', 'stage-asr')
             emit_func('status', 'Transcribing')
+            emit_func('log', "ASR Started")
             
-            msg = "ASR Started"
-            print(msg)
-            emit_func('log', msg)
-            
+            print("[ASR] Whisper Started")
             start_t = time.time()
             if direction == 'e2b':
                 text = pipeline.transcribe_english(audio, pipeline.WHISPER_MODEL_SIZE)
             else:
                 text = pipeline.transcribe_burmese(audio, pipeline.WHISPER_MODEL_SIZE)
             
-            msg_finish = "ASR Finished"
-            print(msg_finish)
-            emit_func('log', msg_finish)
+            print(f"[ASR] Whisper Finished\nTranscript: {text}\n↓")
+            emit_func('log', "ASR Finished")
             
             asr_time = time.time() - start_t
             
@@ -268,15 +270,19 @@ def asr_worker(emit_func):
                 })
                 mt_queue.put({'text': text, 'direction': direction, 'asr_time': asr_time})
             else:
+                print("[ASR] Translation Failed: ASR returned empty transcript")
                 emit_func('log', "Translation Failed: ASR returned empty transcript")
                 
         except queue.Empty:
             continue
         except Exception as e:
+            print("[ASR] ERROR:")
+            traceback.print_exc()
             emit_func('log', f"Translation Failed (ASR): {str(e)}")
 
 def mt_worker(emit_func):
     """Consumes transcripts and translates them."""
+    print("[MT] Worker Started")
     while live_active:
         try:
             item = mt_queue.get(timeout=0.5)
@@ -289,9 +295,8 @@ def mt_worker(emit_func):
             emit_func('timeline', 'stage-mt')
             emit_func('status', 'Translating')
             
-            msg = "Running Translation"
-            print(msg)
-            emit_func('log', msg)
+            print(f"\n[MT]\nTranslation Started\nSource Text: {orig_text}")
+            emit_func('log', "Running Translation")
             
             start_t = time.time()
             if direction == 'e2b':
@@ -300,6 +305,8 @@ def mt_worker(emit_func):
                 translated_text = pipeline.translate_to_english(orig_text)
                 
             mt_time = time.time() - start_t
+            
+            print(f"[MT] Translation Finished\nTranslated Text: {translated_text}\n↓")
             
             if translated_text.strip():
                 tts_queue.put({
@@ -310,15 +317,19 @@ def mt_worker(emit_func):
                     'mt_time': mt_time
                 })
             else:
+                print("[MT] Translation Failed: MT returned empty translation")
                 emit_func('log', "Translation Failed: MT returned empty translation")
                 
         except queue.Empty:
             continue
         except Exception as e:
+            print("[MT] ERROR:")
+            traceback.print_exc()
             emit_func('log', f"Translation Failed (MT): {str(e)}")
 
 def tts_worker(emit_func):
     """Consumes translations and synthesizes speech."""
+    print("[TTS] Worker Started")
     while live_active:
         try:
             item = tts_queue.get(timeout=0.5)
@@ -331,9 +342,8 @@ def tts_worker(emit_func):
             emit_func('timeline', 'stage-tts')
             emit_func('status', 'Generating Speech')
             
-            msg = "Generating Speech"
-            print(msg)
-            emit_func('log', msg)
+            print(f"\n[TTS]\nStarted")
+            emit_func('log', "Generating Speech")
             
             start_t = time.time()
             if direction == 'e2b':
@@ -342,6 +352,7 @@ def tts_worker(emit_func):
                 sr, waveform = pipeline.speak_english(trans_text)
                 
             tts_time = time.time() - start_t
+            print(f"[TTS] Finished\n↓")
             
             # Save audio
             output_filename = f"live_{int(time.time() * 1000)}.wav"
@@ -358,10 +369,13 @@ def tts_worker(emit_func):
         except queue.Empty:
             continue
         except Exception as e:
+            print("[TTS] ERROR:")
+            traceback.print_exc()
             emit_func('log', f"Translation Failed (TTS): {str(e)}")
 
 def broadcast_worker(emit_func):
     """Consumes final payloads and broadcasts them."""
+    print("[BROADCAST] Worker Started")
     while live_active:
         try:
             item = broadcast_queue.get(timeout=0.5)
@@ -370,9 +384,8 @@ def broadcast_worker(emit_func):
             emit_func('timeline', 'stage-broadcast')
             emit_func('status', 'Broadcasting')
             
-            msg = "Broadcast Complete"
-            print(msg)
-            emit_func('log', msg)
+            print(f"\n[BROADCAST]\nSending")
+            emit_func('log', "Broadcast Complete")
             
             emit_func('result', {
                 "original_transcript": "", # Already emitted by ASR worker
@@ -383,8 +396,14 @@ def broadcast_worker(emit_func):
             emit_func('latency', item['latency'])
             emit_func('status', 'Listening')
             
+            print(f"[BROADCAST] Broadcast Complete\n")
+            
         except queue.Empty:
             continue
+        except Exception as e:
+            print("[BROADCAST] ERROR:")
+            traceback.print_exc()
+            emit_func('log', f"Broadcast Error: {str(e)}")
 
 def start_live_pipeline(direction, emit_func):
     global live_active, workers, global_emit

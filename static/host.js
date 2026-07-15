@@ -150,8 +150,7 @@ socket.on('connect', () => {
         });
     }
     
-    // Send initial direction state to any connected clients
-    socket.emit('change_direction', { direction: directionSelect.value });
+    // Removed change_direction on connect to prevent state reset on refresh
 });
 
 socket.on('disconnect', () => {
