@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Client</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    
+    <!-- Autoplay Block Overlay -->
+    <div id="autoplay-overlay" class="autoplay-overlay">
+        <div class="autoplay-prompt">
+            <h2>Audio Playback Blocked</h2>
+            <p>Your browser requires interaction to play live translation audio.</p>
+            <button id="btn-enable-audio">Enable Audio</button>
+        </div>
+    </div>
+
+    <!-- Thin Status Bar -->
+    <div class="top-status-bar">
+        <span><span id="connection-indicator" class="status-indicator"></span>Status : <span id="connection-text">Connecting...</span></span>
+        <span class="status-separator">│</span>
+        <span id="language-indicator">Waiting for language...</span>
+        <span class="status-separator">│</span>
+        <span>State : <span id="current-state">Idle</span></span>
+    </div>
+
+    <div class="container">
+        <div class="grid">
+            <!-- Left Column: Controls & Input -->
+            <div>
+                <div class="panel">
+                    <h2>Configuration</h2>
+                    <div class="form-group">
+                        <label for="mode">Input Mode</label>
+                        <select id="mode">
+                            <option value="microphone">Live Microphone</option>
+                            <option value="upload">Upload Audio</option>
+                            <option value="text">Paste Text</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Input Payload</h2>
+                    
+                    <!-- Dynamic Input Areas -->
+                    <div id="input-microphone" class="input-section active">
+                        <div class="mic-placeholder">🎙️</div>
+                        <p>Microphone ready. Click Start Live to speak.</p>
+                    </div>
+                    
+                    <div id="input-upload" class="input-section">
+                        <div class="upload-placeholder">📁</div>
+                        <div class="form-group" style="text-align: left;">
+                            <label>Select Audio File</label>
+                            <input type="file" id="audio-file" accept="audio/*">
+                        </div>
+                    </div>
+                    
+                    <div id="input-text" class="input-section">
+                        <textarea id="text-input" placeholder="Type or paste text here..."></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button id="btn-start" class="btn-start">🟢 Start Live</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Outputs -->
+            <div>
+                <div class="panel">
+                    <h2>Original Transcript</h2>
+                    <div id="original-transcript" class="transcript-box">Awaiting input...</div>
+                    
+                    <h2>Translated Transcript</h2>
+                    <div id="translated-transcript" class="transcript-box">Awaiting translation...</div>
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2 style="margin:0;">Translated Audio</h2>
+                        <div class="audio-status-panel" style="font-size: 0.9em;">
+                            <span id="audio-icon" class="audio-indicator">⏸</span>
+                            <span id="audio-text">● Waiting</span>
+                        </div>
+                    </div>
+                    
+                    <audio id="client-audio-player" controls style="margin-top: 10px; width: 100%;">
+                        Your browser does not support the audio element.
+                    </audio>
+
+                    <h2>Processing Timeline</h2>
+                    <div class="timeline" id="timeline">
+                        <div class="timeline-stage" id="stage-received">Audio / Text Received</div>
+                        <div class="timeline-stage" id="stage-vad">Speech Detection</div>
+                        <div class="timeline-stage" id="stage-asr">Speech Recognition</div>
+                        <div class="timeline-stage" id="stage-mt">Translation</div>
+                        <div class="timeline-stage" id="stage-tts">Speech Synthesis</div>
+                        <div class="timeline-stage" id="stage-broadcast">Broadcast Complete</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/client.js"></script>
+</body>
+</html>
