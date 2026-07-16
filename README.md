@@ -104,7 +104,7 @@ models/
 ```
 
  the model is stored in b2e.py, update the `WHISPER_MODEL_PATH` variable.
- if you face any issues as ai coz i can't answer nay lol :>
+ if you face any issues ask an ai model coz i can't answer any lol :>
 
 ---
 
