@@ -141,4 +141,4 @@ Client : https://<HOST-IP>:8000/client
 - **mkcert setup fails on Windows:** Ensure you have installed mkcert (`choco install mkcert`) or downloaded the binary. for linux its direct installation via sudo
 - **Firewall blocking LAN:** Allow Python and port 8000 through your Windows Firewall.
 - **Port already in use:** Change the port in `config.json`.
-- **Anything else** Ask ai AI.
+- **Anything else** Ask an AI.
