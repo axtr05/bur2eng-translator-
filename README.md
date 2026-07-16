@@ -138,6 +138,7 @@ Client : https://<HOST-IP>:8000/client
 - **Whisper model missing:** Ensure the model is located exactly in `models/whisper-small-myanmar`.
 - **CUDA library not found:** Update your NVIDIA drivers and ensure they match your PyTorch CUDA version.
 - **HTTPS certificate warning:** Click "Advanced" -> "Proceed", or install the local mkcert CA.
-- **mkcert setup fails on Windows:** Ensure you have installed mkcert (`choco install mkcert`) or downloaded the binary.
+- **mkcert setup fails on Windows:** Ensure you have installed mkcert (`choco install mkcert`) or downloaded the binary. for linux its direct installation via sudo
 - **Firewall blocking LAN:** Allow Python and port 8000 through your Windows Firewall.
 - **Port already in use:** Change the port in `config.json`.
+- **Anything else** Ask ai AI.
